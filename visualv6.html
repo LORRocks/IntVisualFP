@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Force-Directed Graph with D3.js</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="data.js"></script>
+</head>
+<body>
+
+    <input type="text" name="enter" class="enter" id="searchBar" value=""/>
+    <input type="button" value="Set Root" onclick="searchRoot()"/>
+
+    <script>
+      // Sample data: nodes and links
+      //const treeData = {
+      //   concepts: [{name: "@ALL"}, {name: "@OBJECT"}, {name: "@EVENT"}, {name: "@ABSTRACT-OBJECT"}, {name: "@ANIMAL"}, {name: "@WRITE-CODE"}],
+      //   isa: [{source: "@OBJECT", target: "@ALL"}, {source: "@EVENT", target: "@ALL"}, {source: "@ABSTRACT-OBJECT", target: "@OBJECT"}, {source: "@ANIMAL", target: "@OBJECT"}, {source: "@WRITE-CODE", target: "@EVENT"}]
+      //}; 
+
+      //Read in our actual data
+      const treeData = data;
+      
+      const nodes = treeData.concepts;
+      const links = treeData.isa;
+
+      
+      // Create the subset of nodes that will be visible
+      var visibleNodes = [];
+      var visibleLinks = [];
+
+      // Define a function for setting a new "root" for display
+      // after a search
+      function setRoot(root){
+        // Reset the visible nodes
+        visibleNodes = [root];
+        visibleLinks = [];
+
+        // Get links to display
+        visibleLinks = visibleLinks.concat(links.filter((link) => link.target === root.name));
+        visibleLinks = visibleLinks.concat(links.filter((link) => link.source === root.name));
+        
+        // Plot the nodes at the end of the links
+        visibleNodes = visibleNodes.concat(nodes.filter((node) => links.some((link) => link.target === root.name && link.source === node.name)));
+        visibleNodes = visibleNodes.concat(nodes.filter((node) => links.some((link) => link.source === root.name && link.target === node.name)));
+      };
+
+      //Set's up a function to create the graph from blank
+      function createGraph(){
+
+        //Clear the old graph
+        d3.select('svg').remove();
+        const svg = d3.select("body").append("svg").attr("width",600).attr("height", 600);;
+        
+
+        // Create a force simulation
+        const simulation = d3.forceSimulation(visibleNodes)
+        .force("charge", d3.forceManyBody().strength(-1000))
+        .force("link", d3.forceLink(visibleLinks).id(d => d.name))
+        .force("center", d3.forceCenter(300, 300 ))
+        .force("x", d3.forceX())
+        .force("y", d3.forceY());
+        fdg = simulation;
+
+        // Create SVG elements for links
+        const linkGroup = svg.append("g").selectAll("line")
+          .data(visibleLinks)
+          .enter().append("line")
+          .attr("stroke", "gray")
+          .attr("stroke-width", 2);
+
+        // Create SVG elements for nodes (circles)
+        const nodeGroup = svg.append("g").selectAll("circle")
+          .data(visibleNodes)
+          .enter().append("circle")
+          .attr("r", 10)
+          .attr("fill", "steelblue");
+
+        nodeGroup.on("click", function(d){
+          console.log(d.target.__data__.name);
+          var name = d.target.__data__.name;
+          setRoot(nodes.find((node) => node.name === name));
+          createGraph();
+        });
+
+        // Create SVG elements for node labels
+        const labelGroup = svg.append("g").selectAll("text")
+          .data(visibleNodes)
+          .enter().append("text")
+          .attr("dy", -15) // Adjust label position above the node
+          .attr("text-anchor", "middle")
+          .text(d => d.name);
+
+        // Update positions on each tick
+        simulation.on("tick", () => {
+          linkGroup
+            .attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+
+          nodeGroup
+            .attr("cx", d => d.x)
+            .attr("cy", d => d.y);
+          
+          labelGroup
+            .attr("x", d => d.x)
+            .attr("y", d => d.y);
+        });
+
+      }
+
+      //This function is called by the search bar
+      function searchRoot(){
+        var searchTerm = document.getElementById('searchBar').value;
+        console.log(searchTerm);
+
+        var root = nodes.find((node) => node.name === "@ANIMAL")
+
+        //Simple check for now
+        if(root != null){
+          console.log("Set root to " + searchTerm)
+          setRoot(nodes.find((node) => node.name === searchTerm));
+          createGraph();
+        }
+      }
+
+      setRoot(nodes.find((node) => node.name === "@ANIMAL"));
+      createGraph();
+      
+
+    </script>
+</body>
+</html>
