@@ -8,16 +8,11 @@
     <script src="data.js"></script>
 </head>
 <body>
-
+    
     <input type="text" name="enter" class="enter" id="searchBar" value=""/>
     <input type="button" value="Set Root" onclick="searchRoot()"/>
-
+    
     <script>
-      // Sample data: nodes and links
-      //const treeData = {
-      //   concepts: [{name: "@ALL"}, {name: "@OBJECT"}, {name: "@EVENT"}, {name: "@ABSTRACT-OBJECT"}, {name: "@ANIMAL"}, {name: "@WRITE-CODE"}],
-      //   isa: [{source: "@OBJECT", target: "@ALL"}, {source: "@EVENT", target: "@ALL"}, {source: "@ABSTRACT-OBJECT", target: "@OBJECT"}, {source: "@ANIMAL", target: "@OBJECT"}, {source: "@WRITE-CODE", target: "@EVENT"}]
-      //}; 
 
       //Read in our actual data
       const treeData = data;
@@ -25,6 +20,9 @@
       const nodes = treeData.concepts;
       const links = treeData.isa;
 
+      //track which nodes have been expanded
+      const expanded = [];
+      var rootNode = null;
       
       // Create the subset of nodes that will be visible
       var visibleNodes = [];
@@ -34,16 +32,68 @@
       // after a search
       function setRoot(root){
         // Reset the visible nodes
-        visibleNodes = [root];
+        visibleNodes = [];
         visibleLinks = [];
 
-        // Get links to display
-        visibleLinks = visibleLinks.concat(links.filter((link) => link.target === root.name));
-        visibleLinks = visibleLinks.concat(links.filter((link) => link.source === root.name));
+        rootNode = root;
+
+        addNodes(root);
+      };
+
+      function addNodes(root){
+
+        // Determine if this is already in the visible node set
+        var expandedBool = expanded.find((node) => node.name === root.name)
+
+        if(!expandedBool){ //adding a node
+
+          if(visibleNodes.length == 0){
+            visibleNodes = [root];
+          }
+
+          expanded.push(root);
+
+           // Get links to display
+          visibleLinks = visibleLinks.concat(links.filter((link) => link.target === root.name));
+          visibleLinks = visibleLinks.concat(links.filter((link) => link.source === root.name));
         
-        // Plot the nodes at the end of the links
-        visibleNodes = visibleNodes.concat(nodes.filter((node) => links.some((link) => link.target === root.name && link.source === node.name)));
-        visibleNodes = visibleNodes.concat(nodes.filter((node) => links.some((link) => link.source === root.name && link.target === node.name)));
+          // Plot the nodes at the end of the links
+          visibleNodes = visibleNodes.concat(nodes.filter((node) => links.some((link) => link.target === root.name && link.source === node.name)));
+          visibleNodes = visibleNodes.concat(nodes.filter((node) => links.some((link) => link.source === root.name && link.target === node.name)));
+        }else{ //removing a node, however that means's removing all nodes that are below it
+          
+          nodesToRemove = [];
+
+          function findToRemove(node){ //go down the tree generating nodes to remove
+            var linksDownStream = visibleLinks.filter((link) => link.target.name == node.name)
+            console.log(node);
+            console.log(linksDownStream);
+            for(var i = 0; i < linksDownStream.length;i++){
+              nodesToRemove.push(linksDownStream[i].source);
+              findToRemove(linksDownStream[i].source);
+      
+            }
+          }
+
+
+          function removeNode(removeNode){
+            //remove the node from the visibleNodes set
+           visibleNodes = visibleNodes.filter((node) => node.name != removeNode.name)
+          
+            //remove the links
+            visibleLinks = visibleLinks.filter((link) => link.target.name != removeNode.name)
+            visibleLinks = visibleLinks.filter((link) => link.source.name != removeNode.name)
+
+            expanded.filter((node) => node.name != removeNode.name);
+          }
+
+          findToRemove(root);
+          expanded.filter((node) => node.name != root.name);
+          console.log(nodesToRemove);
+
+          nodesToRemove.forEach(removeNode);
+
+        }
       };
 
       //Set's up a function to create the graph from blank
@@ -51,14 +101,14 @@
 
         //Clear the old graph
         d3.select('svg').remove();
-        const svg = d3.select("body").append("svg").attr("width",600).attr("height", 600);;
+        const svg = d3.select("body").append("svg").attr("width",800).attr("height", 800);
         
 
         // Create a force simulation
         const simulation = d3.forceSimulation(visibleNodes)
-        .force("charge", d3.forceManyBody().strength(-1000))
+        .force("charge", d3.forceManyBody().strength(-2000))
         .force("link", d3.forceLink(visibleLinks).id(d => d.name))
-        .force("center", d3.forceCenter(300, 300 ))
+        .force("center", d3.forceCenter(400, 400))
         .force("x", d3.forceX())
         .force("y", d3.forceY());
         fdg = simulation;
@@ -75,15 +125,27 @@
           .data(visibleNodes)
           .enter().append("circle")
           .attr("r", 10)
-          .attr("fill", "steelblue");
+          .attr("fill", (d) => {
+            if(d.name == rootNode.name){
+              return "red";
+             }else{
+              return "steelblue";
+            }});
 
         nodeGroup.on("click", function(d){
           console.log(d.target.__data__.name);
           var name = d.target.__data__.name;
-          setRoot(nodes.find((node) => node.name === name));
+          addNodes(nodes.find((node) => node.name === name));
           createGraph();
         });
-
+/*
+        nodeGroup.on("click", function(d){
+          console.log(d.target.__data__.name);
+          var name = d.target.__data__.name;
+          addNodes(nodes.find((node) => node.name === name));
+          createGraph();
+        });
+*/
         // Create SVG elements for node labels
         const labelGroup = svg.append("g").selectAll("text")
           .data(visibleNodes)
@@ -107,6 +169,8 @@
           labelGroup
             .attr("x", d => d.x)
             .attr("y", d => d.y);
+
+          //simulation.alphaTarget(0.3).restart();
         });
 
       }
@@ -129,7 +193,6 @@
       setRoot(nodes.find((node) => node.name === "@ANIMAL"));
       createGraph();
       
-
     </script>
 </body>
 </html>
